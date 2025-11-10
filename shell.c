@@ -34,38 +34,8 @@ int read_command(char **line, size_t *len)
 }
 
 /**
- * trim_spaces - remove leading and trailing spaces/tabs from a line
- * @line: input line
- *
- * Return: pointer to first non-space/non-tab character
- */
-char *trim_spaces(char *line)
-{
-	char *start = line;
-	char *end;
-
-	if (line == NULL)
-		return (NULL);
-
-	while (*start == ' ' || *start == '\t')
-		start++;
-
-	if (*start == '\0')
-		return (start);
-
-	end = start + strlen(start) - 1;
-	while (end > start && (*end == ' ' || *end == '\t'))
-	{
-		*end = '\0';
-		end--;
-	}
-
-	return (start);
-}
-
-/**
  * build_argv - split command line into program name and arguments
- * @cmd: trimmed command line (modified in place)
+ * @cmd: command line (modified in place)
  * @argv: array of pointers to fill
  * @size: maximum number of entries in argv
  *
@@ -89,7 +59,78 @@ int build_argv(char *cmd, char **argv, int size)
 }
 
 /**
- * execute_command - fork and execute a command with execve
+ * find_in_path - locate command in PATH or check direct path
+ * @cmd: command name (no spaces)
+ * @envp: environment variables
+ *
+ * Return: malloc'd string with full path, or NULL if not found
+ */
+char *find_in_path(char *cmd, char **envp)
+{
+	int i;
+	char *path_env = NULL, *path_copy, *dir, *full;
+	size_t len_dir, len_cmd;
+
+	if (cmd == NULL || *cmd == '\0')
+		return (NULL);
+
+	if (strchr(cmd, '/'))
+	{
+		if (access(cmd, X_OK) == 0)
+		{
+			full = malloc(strlen(cmd) + 1);
+			if (!full)
+				return (NULL);
+			strcpy(full, cmd);
+			return (full);
+		}
+		return (NULL);
+	}
+
+	for (i = 0; envp && envp[i]; i++)
+	{
+		if (strncmp(envp[i], "PATH=", 5) == 0)
+		{
+			path_env = envp[i] + 5;
+			break;
+		}
+	}
+	if (!path_env || *path_env == '\0')
+		return (NULL);
+
+	path_copy = malloc(strlen(path_env) + 1);
+	if (!path_copy)
+		return (NULL);
+	strcpy(path_copy, path_env);
+
+	len_cmd = strlen(cmd);
+	dir = strtok(path_copy, ":");
+	while (dir)
+	{
+		len_dir = strlen(dir);
+		full = malloc(len_dir + 1 + len_cmd + 1);
+		if (!full)
+		{
+			free(path_copy);
+			return (NULL);
+		}
+		strcpy(full, dir);
+		full[len_dir] = '/';
+		strcpy(full + len_dir + 1, cmd);
+		if (access(full, X_OK) == 0)
+		{
+			free(path_copy);
+			return (full);
+		}
+		free(full);
+		dir = strtok(NULL, ":");
+	}
+	free(path_copy);
+	return (NULL);
+}
+
+/**
+ * execute_command - resolve path, fork and execute with execve
  * @cmdline: command line to execute (program + optional arguments)
  * @pname: program name (from argv[0]) for error messages
  * @envp: environment variables
@@ -100,22 +141,32 @@ void execute_command(char *cmdline, char *pname, char **envp, char *line)
 	pid_t pid;
 	int status;
 	char *argv[64];
+	char *path;
 
 	if (build_argv(cmdline, argv, 64) == 0 || argv[0] == NULL)
 		return;
 
-	pid = fork();
-	if (pid == -1)
+	path = find_in_path(argv[0], envp);
+	if (path == NULL)
 	{
 		perror(pname);
 		return;
 	}
 
+	pid = fork();
+	if (pid == -1)
+	{
+		perror(pname);
+		free(path);
+		return;
+	}
+
 	if (pid == 0)
 	{
-		if (execve(argv[0], argv, envp) == -1)
+		if (execve(path, argv, envp) == -1)
 		{
 			perror(pname);
+			free(path);
 			free(line);
 			exit(EXIT_FAILURE);
 		}
@@ -123,11 +174,12 @@ void execute_command(char *cmdline, char *pname, char **envp, char *line)
 	else
 	{
 		wait(&status);
+		free(path);
 	}
 }
 
 /**
- * main - Simple UNIX command line interpreter (Simple shell 0.1)
+ * main - Simple UNIX command line interpreter (0.3 with PATH)
  * @ac: argument count (unused)
  * @av: argument vector (used for program name in error messages)
  * @envp: environment variables (passed to execve)
@@ -138,7 +190,7 @@ int main(int ac, char **av, char **envp)
 {
 	char *line = NULL;
 	size_t len = 0;
-	char *cmd;
+	char *cmd, *end;
 
 	(void)ac;
 
@@ -147,11 +199,20 @@ int main(int ac, char **av, char **envp)
 		if (read_command(&line, &len) == -1)
 			break;
 
-		cmd = trim_spaces(line);
+		cmd = line;
+		while (*cmd == ' ' || *cmd == '\t')
+			cmd++;
+
 		if (*cmd == '\0')
 			continue;
 
-		/* No PATH: command must be given as a path (e.g. /bin/ls, ./hbtn_ls) */
+		end = cmd + strlen(cmd) - 1;
+		while (end > cmd && (*end == ' ' || *end == '\t'))
+		{
+			*end = '\0';
+			end--;
+		}
+
 		execute_command(cmd, av[0], envp, line);
 	}
 
