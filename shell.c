@@ -48,8 +48,8 @@ int read_line(char **line, size_t *len)
  */
 char *trim_edges(char *s)
 {
-	char *end;
 	char *p;
+	char *end;
 
 	p = s;
 	if (!p)
@@ -68,7 +68,7 @@ char *trim_edges(char *s)
 }
 
 /**
- * build_argv - tokenize command line into argv (modifies input)
+ * build_argv - split a command line into argv (modifies input)
  * @cmd: command line to split (modified)
  * @argv: array to fill with pointers
  * @max: maximum entries in argv
@@ -78,17 +78,17 @@ char *trim_edges(char *s)
 int build_argv(char *cmd, char **argv, int max)
 {
 	int argc;
-	char *tok;
+	char *token;
 	char *save;
 
 	argc = 0;
 	if (!cmd)
 		return (0);
-	tok = strtok_r(cmd, " \t", &save);
-	while (tok && argc < max - 1)
+	token = strtok(cmd, " \t");
+	while (token && argc < max - 1)
 	{
-		argv[argc++] = tok;
-		tok = strtok_r(NULL, " \t", &save);
+		argv[argc++] = token;
+		token = strtok(NULL, " \t");
 	}
 	argv[argc] = NULL;
 	return (argc);
@@ -132,7 +132,7 @@ char *path_from_env(char *cmd, char **envp)
 	if (!copy)
 		return (NULL);
 	cmdlen = strlen(cmd);
-	dir = strtok_r(copy, ":", &dir);
+	dir = strtok(copy, ":");
 	while (dir)
 	{
 		dlen = strlen(dir);
@@ -151,24 +151,24 @@ char *path_from_env(char *cmd, char **envp)
 			return (full);
 		}
 		free(full);
-		dir = strtok_r(NULL, ":", &dir);
+		dir = strtok(NULL, ":");
 	}
 	free(copy);
 	return (NULL);
 }
 
 /**
- * resolve_path - resolve cmd to executable path or NULL
+ * resolve_path - resolve a command to an absolute path
  * @cmd: command name (may contain '/')
  * @envp: environment variables
  *
- * Return: malloc'd path or NULL
+ * Return: malloc'd string with full path, or NULL if not found
  */
 char *resolve_path(char *cmd, char **envp)
 {
-	char *full;
+	char *ret;
 
-	full = NULL;
+	ret = NULL;
 	if (!cmd || *cmd == '\0')
 		return (NULL);
 	if (strchr(cmd, '/'))
@@ -222,14 +222,14 @@ int fork_and_exec(char *path, char **argv, char **envp, char *pname, int line_no
 }
 
 /**
- * handle_builtin - handle 'exit' and 'env' builtins, return 1 if handled
- * @argv: argument vector
+ * handle_builtin - handle built-in commands: exit, env
+ * @argv: argument vector (argv[0] is command)
  * @envp: environment variables
- * @line: input buffer to free before exit
+ * @line: input buffer to free before exiting
  * @last_status: last command exit status
  * @pname: program name for error messages
  *
- * Return: 1 if builtin handled, 0 otherwise
+ * Return: 1 if a built-in was executed, 0 otherwise
  */
 int handle_builtin(char **argv, char **envp, char *line, int last_status, char *pname)
 {
@@ -261,11 +261,11 @@ int handle_builtin(char **argv, char **envp, char *line, int last_status, char *
 }
 
 /**
- * execute_command - execute a command line and return status
- * @linebuf: command line buffer (may contain args)
- * @pname: program name for error messages
+ * execute_command - resolve path and execute command with execve
+ * @linebuf: command line to execute (program + optional arguments)
+ * @pname: program name (from argv[0] of main) for error messages
  * @envp: environment variables
- * @line_no: input line number for errors
+ * @line_no: input line number for error messages
  *
  * Return: child exit status or 127 if not found
  */
@@ -311,10 +311,10 @@ int execute_command(char *linebuf, char *pname, char **envp, int line_no)
 }
 
 /**
- * main - simple shell main loop
+ * main - Simple UNIX command line interpreter (Simple shell)
  * @ac: argument count (unused)
- * @av: argument vector (used for program name)
- * @envp: environment variables
+ * @av: argument vector (used for program name in error messages)
+ * @envp: environment variables (passed to execve and env builtin)
  *
  * Return: 0 on success
  */
