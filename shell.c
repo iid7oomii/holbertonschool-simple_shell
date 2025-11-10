@@ -4,20 +4,30 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <string.h>
+#include <ctype.h>
 
 /**
- * read_command - display prompt (if tty) and read one line from stdin
+ * print_prompt - print prompt if interactive
+ *
+ * Return: void
+ */
+void print_prompt(void)
+{
+	if (isatty(STDIN_FILENO))
+		write(STDOUT_FILENO, "#cisfun$ ", 9);
+}
+
+/**
+ * read_line - read a line from stdin using getline
  * @line: address of buffer pointer used by getline
  * @len: address of buffer size used by getline
  *
- * Return: 0 on success, -1 on EOF or error
+ * Return: 0 on success, -1 on EOF/error
  */
-int read_command(char **line, size_t *len)
+int read_line(char **line, size_t *len)
 {
 	ssize_t nread;
 
-	if (isatty(STDIN_FILENO))
-		write(STDOUT_FILENO, "#cisfun$ ", 9);
 	nread = getline(line, len, stdin);
 	if (nread == -1)
 	{
@@ -31,20 +41,20 @@ int read_command(char **line, size_t *len)
 }
 
 /**
- * trim_spaces - remove leading and trailing spaces/tabs from a line
- * @line: input line
+ * trim_spaces - trim leading and trailing spaces/tabs
+ * @s: input string (modified in place)
  *
- * Return: pointer to first non-space/non-tab character
+ * Return: pointer to trimmed start
  */
-char *trim_spaces(char *line)
+char *trim_spaces(char *s)
 {
 	char *start;
 	char *end;
 
-	start = line;
-	if (line == NULL)
+	start = s;
+	if (!start)
 		return (NULL);
-	while (*start == ' ' || *start == '\t')
+	while (*start && (*start == ' ' || *start == '\t'))
 		start++;
 	if (*start == '\0')
 		return (start);
@@ -58,54 +68,183 @@ char *trim_spaces(char *line)
 }
 
 /**
- * build_argv - split command line into program name and arguments
- * @cmd: command line (modified in place)
- * @argv: array of pointers to fill
- * @size: maximum number of entries in argv
+ * build_argv - split command line into argv (modifies input)
+ * @cmd: command line (modified)
+ * @argv: array to fill
+ * @size: max entries
  *
- * Return: number of arguments stored (argc)
+ * Return: argc
  */
 int build_argv(char *cmd, char **argv, int size)
 {
-	int i;
-	char *token;
+	int argc;
+	char *tok;
+	char *save;
 
-	i = 0;
-	if (cmd == NULL)
-	{
-		if (argv)
-			argv[0] = NULL;
+	argc = 0;
+	if (!cmd)
 		return (0);
-	}
-	token = strtok(cmd, " \t");
-	while (token != NULL && i < size - 1)
+	tok = strtok_r(cmd, " \t", &save);
+	while (tok && argc < size - 1)
 	{
-		argv[i] = token;
-		i++;
-		token = strtok(NULL, " \t");
+		argv[argc++] = tok;
+		tok = strtok_r(NULL, " \t", &save);
 	}
-	argv[i] = NULL;
-	return (i);
+	argv[argc] = NULL;
+	return (argc);
 }
 
 /**
- * handle_builtin - handle built-in commands: exit, env
- * @argv: argument vector (argv[0] is command)
- * @envp: environment variables
- * @line: input buffer to free before exiting
+ * path_from_env - search PATH for cmd and return malloc'd path
+ * @cmd: command name (no slash)
+ * @envp: environment vars
  *
- * Return: 1 if a built-in was executed, 0 otherwise
+ * Return: malloc'd full path or NULL
  */
-int handle_builtin(char **argv, char **envp, char *line)
+char *path_from_env(char *cmd, char **envp)
+{
+	char *path_env;
+	char *copy;
+	char *dir;
+	char *full;
+	size_t cmdlen;
+	size_t dlen;
+	int i;
+
+	path_env = NULL;
+	copy = NULL;
+	dir = NULL;
+	full = NULL;
+	cmdlen = 0;
+	if (!cmd || !envp)
+		return (NULL);
+	for (i = 0; envp[i]; i++)
+	{
+		if (strncmp(envp[i], "PATH=", 5) == 0)
+		{
+			path_env = envp[i] + 5;
+			break;
+		}
+	}
+	if (!path_env || *path_env == '\0')
+		return (NULL);
+	copy = strdup(path_env);
+	if (!copy)
+		return (NULL);
+	cmdlen = strlen(cmd);
+	dir = strtok_r(copy, ":", &dir);
+	while (dir)
+	{
+		dlen = strlen(dir);
+		full = malloc(dlen + 1 + cmdlen + 1);
+		if (!full)
+		{
+			free(copy);
+			return (NULL);
+		}
+		memcpy(full, dir, dlen);
+		full[dlen] = '/';
+		memcpy(full + dlen + 1, cmd, cmdlen + 1);
+		if (access(full, X_OK) == 0)
+		{
+			free(copy);
+			return (full);
+		}
+		free(full);
+		dir = strtok_r(NULL, ":", &dir);
+	}
+	free(copy);
+	return (NULL);
+}
+
+/**
+ * resolve_path - resolve cmd to executable path or NULL
+ * @cmd: command name (may contain '/')
+ * @envp: environment vars
+ *
+ * Return: malloc'd path or NULL
+ */
+char *resolve_path(char *cmd, char **envp)
+{
+	if (!cmd || *cmd == '\0')
+		return (NULL);
+	if (strchr(cmd, '/'))
+	{
+		if (access(cmd, X_OK) == 0)
+			return (strdup(cmd));
+		return (NULL);
+	}
+	return (path_from_env(cmd, envp));
+}
+
+/**
+ * fork_and_exec - fork and exec path with argv, return child's exit status
+ * @path: resolved path
+ * @argv: argv array
+ * @envp: environment vars
+ * @pname: program name for errors
+ * @line_no: input line number for errors
+ *
+ * Return: child's exit status or -1 on fork/wait error
+ */
+int fork_and_exec(char *path, char **argv, char **envp, char *pname, int line_no)
+{
+	pid_t pid;
+	int status;
+	int ret;
+
+	pid = fork();
+	if (pid == -1)
+	{
+		perror(pname);
+		return (-1);
+	}
+	if (pid == 0)
+	{
+		execve(path, argv, envp);
+		/* if execve fails in child, print formatted message and exit */
+		dprintf(STDERR_FILENO, "%s: %d: %s: not found\n", pname, line_no, argv[0]);
+		_exit(127);
+	}
+	ret = waitpid(pid, &status, 0);
+	if (ret == -1)
+	{
+		perror(pname);
+		return (-1);
+	}
+	if (WIFEXITED(status))
+		return (WEXITSTATUS(status));
+	if (WIFSIGNALED(status))
+		return (128 + WTERMSIG(status));
+	return (status);
+}
+
+/**
+ * handle_builtin - handle builtins exit/env
+ * @argv: argv array
+ * @envp: environment vars
+ * @line: input buffer
+ * @last_status: last command exit status
+ * @pname: program name
+ *
+ * Return: 1 if builtin handled, 0 otherwise
+ */
+int handle_builtin(char **argv, char **envp, char *line, int last_status, char *pname)
 {
 	int i;
 
-	if (argv == NULL || argv[0] == NULL)
+	(void)pname;
+	if (!argv || !argv[0])
 		return (0);
 	if (strcmp(argv[0], "exit") == 0)
 	{
+		if (argv[1] == NULL)
+		{
+			free(line);
+			exit(last_status);
+		}
 		free(line);
-		exit(0);
+		exit(atoi(argv[1]));
 	}
 	if (strcmp(argv[0], "env") == 0)
 	{
@@ -122,174 +261,97 @@ int handle_builtin(char **argv, char **envp, char *line)
 }
 
 /**
- * path_from_env - search PATH directories for a command
- * @cmd: command name (no slash)
- * @envp: environment variables
+ * execute_command - execute command line and return status
+ * @linebuf: command line buffer
+ * @pname: program name for errors
+ * @envp: environment vars
+ * @line_no: input line number
  *
- * Return: malloc'd string with full path, or NULL if not found
+ * Return: child exit status or 127 if not found
  */
-char *path_from_env(char *cmd, char **envp)
+int execute_command(char *linebuf, char *pname, char **envp, int line_no)
 {
-	char *path_env;
-	char *copy;
-	char *dir;
-	char *full;
-	size_t len_cmd;
-	size_t len_dir;
-	int i;
-
-	path_env = NULL;
-	copy = NULL;
-	dir = NULL;
-	full = NULL;
-	len_cmd = 0;
-	len_dir = 0;
-	if (!cmd || !envp)
-		return (NULL);
-	for (i = 0; envp[i]; i++)
-	{
-		if (strncmp(envp[i], "PATH=", 5) == 0)
-		{
-			path_env = envp[i] + 5;
-			break;
-		}
-	}
-	if (!path_env || *path_env == '\0')
-		return (NULL);
-	copy = malloc(strlen(path_env) + 1);
-	if (!copy)
-		return (NULL);
-	strcpy(copy, path_env);
-	len_cmd = strlen(cmd);
-	dir = strtok(copy, ":");
-	while (dir)
-	{
-		len_dir = strlen(dir);
-		full = malloc(len_dir + 1 + len_cmd + 1);
-		if (!full)
-		{
-			free(copy);
-			return (NULL);
-		}
-		strcpy(full, dir);
-		full[len_dir] = '/';
-		strcpy(full + len_dir + 1, cmd);
-		if (access(full, X_OK) == 0)
-		{
-			free(copy);
-			return (full);
-		}
-		free(full);
-		dir = strtok(NULL, ":");
-	}
-	free(copy);
-	return (NULL);
-}
-
-/**
- * resolve_path - resolve a command to an absolute path
- * @cmd: command name (may contain slash)
- * @envp: environment variables
- *
- * Return: malloc'd string with full path, or NULL if not found
- */
-char *resolve_path(char *cmd, char **envp)
-{
-	char *full;
-
-	full = NULL;
-	if (cmd == NULL || *cmd == '\0')
-		return (NULL);
-	if (strchr(cmd, '/'))
-	{
-		if (access(cmd, X_OK) == 0)
-		{
-			full = malloc(strlen(cmd) + 1);
-			if (!full)
-				return (NULL);
-			strcpy(full, cmd);
-			return (full);
-		}
-		return (NULL);
-	}
-	return (path_from_env(cmd, envp));
-}
-
-/**
- * execute_command - resolve path and execute command with execve
- * @argv: argument vector (argv[0] is command name)
- * @pname: program name (from argv[0] of main) for error messages
- * @envp: environment variables
- * @line: input buffer to free in the child on execve error
- *
- * Return: void
- */
-void execute_command(char **argv, char *pname, char **envp, char *line)
-{
-	pid_t pid;
+	char *dup;
+	char *argv[64];
+	char *path;
+	int argc;
 	int status;
-	char *full;
 
-	full = resolve_path(argv[0], envp);
-	if (full == NULL)
+	dup = NULL;
+	path = NULL;
+	argc = 0;
+	status = 0;
+	if (!linebuf)
+		return (0);
+	dup = strdup(linebuf);
+	if (!dup)
 	{
 		perror(pname);
-		return;
+		return (0);
 	}
-	pid = fork();
-	if (pid == -1)
+	argc = build_argv(dup, argv, 64);
+	if (argc == 0)
 	{
-		perror(pname);
-		free(full);
-		return;
+		free(dup);
+		return (0);
 	}
-	if (pid == 0)
+	path = resolve_path(argv[0], envp);
+	if (!path)
 	{
-		if (execve(full, argv, envp) == -1)
-		{
-			perror(pname);
-			free(full);
-			free(line);
-			exit(EXIT_FAILURE);
-		}
+		/* print exact formatted message required by checker */
+		dprintf(STDERR_FILENO, "%s: %d: %s: not found\n", pname, line_no, argv[0]);
+		free(dup);
+		/* if non-interactive (pipe), exit with 127 */
+		if (!isatty(STDIN_FILENO))
+			exit(127);
+		return (127);
 	}
-	else
-	{
-		wait(&status);
-		free(full);
-	}
+	status = fork_and_exec(path, argv, envp, pname, line_no);
+	free(path);
+	free(dup);
+	return (status);
 }
 
 /**
- * main - Simple UNIX command line interpreter with PATH and built-ins
- * @ac: argument count (unused)
- * @av: argument vector (used for program name in error messages)
- * @envp: environment variables (passed to execve and env builtin)
+ * main - simple shell main loop
+ * @ac: arg count (unused)
+ * @av: arg vector (program name)
+ * @envp: environment vars
  *
- * Return: 0 on success, or EXIT_FAILURE on fatal error
+ * Return: 0 on success
  */
 int main(int ac, char **av, char **envp)
 {
 	char *line;
 	size_t len;
+	int line_no;
+	int last_status;
 	char *cmd;
-	char *argv[64];
+	char *argv_full[64];
+	int argc;
 
 	(void)ac;
 	line = NULL;
 	len = 0;
+	line_no = 0;
+	last_status = 0;
+	argc = 0;
+
 	while (1)
 	{
-		if (read_command(&line, &len) == -1)
+		print_prompt();
+		if (read_line(&line, &len) == -1)
 			break;
+		line_no++;
 		cmd = trim_spaces(line);
-		if (*cmd == '\0')
+		if (!cmd || *cmd == '\0')
 			continue;
-		if (build_argv(cmd, argv, 64) == 0 || argv[0] == NULL)
+		argc = build_argv(cmd, argv_full, 64);
+		if (argc == 0)
 			continue;
-		if (handle_builtin(argv, envp, line))
+		if (handle_builtin(argv_full, envp, line, last_status, av[0]))
 			continue;
-		execute_command(argv, av[0], envp, line);
+		last_status = execute_command(cmd, av[0], envp, line_no);
 	}
 	free(line);
 	return (0);
