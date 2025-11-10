@@ -64,17 +64,45 @@ char *trim_spaces(char *line)
 }
 
 /**
+ * build_argv - split command line into program name and arguments
+ * @cmd: trimmed command line (modified in place)
+ * @argv: array of pointers to fill
+ * @size: maximum number of entries in argv
+ *
+ * Return: number of arguments stored (argc)
+ */
+int build_argv(char *cmd, char **argv, int size)
+{
+	int i = 0;
+	char *token;
+
+	token = strtok(cmd, " \t");
+	while (token != NULL && i < size - 1)
+	{
+		argv[i] = token;
+		i++;
+		token = strtok(NULL, " \t");
+	}
+	argv[i] = NULL;
+
+	return (i);
+}
+
+/**
  * execute_command - fork and execute a command with execve
- * @cmd: command to execute (absolute path expected in this task)
+ * @cmdline: command line to execute (program + optional arguments)
  * @pname: program name (from argv[0]) for error messages
  * @envp: environment variables
  * @line: input buffer to free in the child on execve error
  */
-void execute_command(char *cmd, char *pname, char **envp, char *line)
+void execute_command(char *cmdline, char *pname, char **envp, char *line)
 {
 	pid_t pid;
 	int status;
-	char *argv[2];
+	char *argv[64];
+
+	if (build_argv(cmdline, argv, 64) == 0 || argv[0] == NULL)
+		return;
 
 	pid = fork();
 	if (pid == -1)
@@ -85,10 +113,7 @@ void execute_command(char *cmd, char *pname, char **envp, char *line)
 
 	if (pid == 0)
 	{
-		argv[0] = cmd;
-		argv[1] = NULL;
-
-		if (execve(cmd, argv, envp) == -1)
+		if (execve(argv[0], argv, envp) == -1)
 		{
 			perror(pname);
 			free(line);
@@ -126,7 +151,7 @@ int main(int ac, char **av, char **envp)
 		if (*cmd == '\0')
 			continue;
 
-		/* No PATH, no arguments: command must be a single word path */
+		/* No PATH: command must be given as a path (e.g. /bin/ls, ./hbtn_ls) */
 		execute_command(cmd, av[0], envp, line);
 	}
 
