@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <string.h>
 
 /**
  * read_command - display prompt (if tty) and read one line from stdin
@@ -33,19 +34,33 @@ int read_command(char **line, size_t *len)
 }
 
 /**
- * skip_spaces - skip leading spaces and tabs in a line
+ * trim_spaces - remove leading and trailing spaces/tabs from a line
  * @line: input line
  *
  * Return: pointer to first non-space/non-tab character
  */
-char *skip_spaces(char *line)
+char *trim_spaces(char *line)
 {
-	char *p = line;
+	char *start = line;
+	char *end;
 
-	while (*p == ' ' || *p == '\t')
-		p++;
+	if (line == NULL)
+		return (NULL);
 
-	return (p);
+	while (*start == ' ' || *start == '\t')
+		start++;
+
+	if (*start == '\0')
+		return (start);
+
+	end = start + strlen(start) - 1;
+	while (end > start && (*end == ' ' || *end == '\t'))
+	{
+		*end = '\0';
+		end--;
+	}
+
+	return (start);
 }
 
 /**
@@ -107,7 +122,7 @@ int main(int ac, char **av, char **envp)
 		if (read_command(&line, &len) == -1)
 			break;
 
-		cmd = skip_spaces(line);
+		cmd = trim_spaces(line);
 		if (*cmd == '\0')
 			continue;
 
