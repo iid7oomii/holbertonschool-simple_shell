@@ -1,19 +1,75 @@
-# Simple Shell
+# Simple Shell Project
 
-This repository contains a simple UNIX command line interpreter
-implemented in C for the Holberton/ALX simple_shell project.
+![Meme](./i-cant-for-the-life-of-me-figure-out-the-weird-syntax-v0-76w3ietf3hz81.webp)
 
-## Features (Task 2: Simple shell 0.1)
+---
 
-- Displays a prompt `#cisfun$ ` in interactive mode
-- Reads a line from standard input using `getline`
-- Executes a single-word command using `fork` and `execve`
-- Does not use the PATH (absolute paths only, e.g. `/bin/ls`)
-- Prints an error message if the executable cannot be found
-- Handles the end-of-file (Ctrl+D)
-- Works in both interactive and non-interactive modes
+## 🧠 What’s This About?
 
-## Compilation
+This is a minimalist UNIX command interpreter written in C — yes, **that** kind of shell.  
+It’s built from scratch, obeying the same logic as `/bin/sh`, but with more caffeine and less sanity.
 
-```bash
-gcc -Wall -Werror -Wextra -pedantic -std=gnu89 *.c -o hsh
+---
+
+## ⚙️ Features
+
+- Displays a prompt and waits for a command.  
+- Executes simple commands found in the PATH.  
+- Handles built-in commands like `exit` and `env`.  
+- Prints appropriate error messages when your command doesn’t exist (don’t cry, just debug).  
+- Manages permissions gracefully — “Permission denied” isn’t a bug, it’s a lifestyle.
+
+---
+
+## 🔩 How to Compile
+
+bash
+make
+This will build the binary hsh.
+
+---
+
+## To clean up compiled files (because clutter is evil):
+<pre> ``` make clean ``` </pre>
+
+---
+
+## How to Run
+Interactive mode:
+<pre> ``` ./hsh
+$ echo "Hello, Shell!"
+Hello, Shell!
+$ exit
+ ``` </pre>
+
+ Non-interactive mode:
+<pre> ``` echo "ls -l" | ./hsh ``` </pre>
+
+---
+
+## Example Session
+
+<pre> ``` $ ls
+AUTHORS  main.c  path.c  builtins.c
+$ echo "I feel powerful"
+I feel powerful
+$ exit
+ ``` </pre>
+
+ ---
+
+ ## Team Philosophy
+
+ "If it compiles, it works."
+– A confident programmer, moments before segfault.
+We built this project to understand what’s really happening when you type a command in your terminal.
+Spoiler: it involves forks, execve, and a healthy amount of pain.
+
+---
+
+## Testing
+
+Want to test it like a pro? Try:
+<pre> ``` echo "ls; echo hello; pwd" | ./hsh ``` </pre>
+If you see output and no crashes — congratulations, you have achieved temporary happiness.
+
