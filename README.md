@@ -1,6 +1,7 @@
 # Simple Shell Project
 
-![Meme](./i-cant-for-the-life-of-me-figure-out-the-weird-syntax-v0-76w3ietf3hz81.webp)
+![Meme](https://www.reddit.com/media?url=https%3A%2F%2Fpreview.redd.it%2Fi-cant-for-the-life-of-me-figure-out-the-weird-syntax-v0-76w3ietf3hz81.png%3Fwidth%3D320%26crop%3Dsmart%26auto%3Dwebp%26s%3Dd4ed48d767eb11af8b2f4eeb54c03b18032c06a2)
+
 
 ---
 
