@@ -51,7 +51,9 @@ int builtin_exit(char **argv, shell_info_t *info)
 	char *endptr;
 	long v;
 
-	code = 0;
+	if (!info)
+		cleanup_and_exit(info, 0);
+
 	if (argv[1])
 	{
 		v = strtol(argv[1], &endptr, 10);
@@ -66,11 +68,16 @@ int builtin_exit(char **argv, shell_info_t *info)
 		}
 		code = (int)v;
 	}
+	else
+	{
+		code = info->status;
+	}
 
 	free_tokens(argv);
 	cleanup_and_exit(info, code);
-	return code; /* unreachable */
+	return code;
 }
+
 
 /**
  * handle_builtin - dispatch to the appropriate builtin handler
