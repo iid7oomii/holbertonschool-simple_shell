@@ -1,10 +1,10 @@
 #include "shell.h"
 
 /**
- * read_line - read a full line using getline and return malloc'ed buffer
+ * read_line - read a line from input stream using getline
  * @stream: input stream (usually stdin)
  *
- * Return: pointer to line (malloc) or NULL on EOF/error
+ * Return: pointer to malloc'ed string or NULL on EOF
  */
 char *read_line(FILE *stream)
 {
@@ -16,71 +16,82 @@ char *read_line(FILE *stream)
 	if (nread == -1)
 	{
 		free(line);
-		return NULL;
+		return (NULL);
 	}
 	if (nread > 0 && line[nread - 1] == '\n')
 		line[nread - 1] = '\0';
-	return line;
+	return (line);
 }
 
 /**
- * copy_token - copy a substring into a new malloc'ed string
- * @start: start pointer of token
- * @len: length of token
- *
- * Return: newly allocated string or NULL
- */
-char *copy_token(const char *start, size_t len)
-{
-	char *tok = malloc(len + 1);
-	if (!tok)
-		return NULL;
-	memcpy(tok, start, len);
-	tok[len] = '\0';
-	return tok;
-}
-
-/**
- * count_tokens - count simple space-separated tokens in a line
- * @line: input line
+ * count_tokens - count tokens separated by space or tab
+ * @line: input string
  *
  * Return: number of tokens
  */
 int count_tokens(const char *line)
 {
 	int count = 0;
+	int in_token = 0;
 	const char *p = line;
-	int in_tok = 0;
 
-	while (*p)
+	while (p && *p)
 	{
 		if (*p == ' ' || *p == '\t')
-			in_tok = 0;
-		else if (!in_tok)
+			in_token = 0;
+		else if (!in_token)
 		{
-			in_tok = 1;
+			in_token = 1;
 			count++;
 		}
 		p++;
 	}
-	return count;
+	return (count);
 }
 
 /**
- * tokenize - split the line into a simple argv array (no full shell grammar)
- * @line: input line (modified in process)
+ * copy_token - create malloc'ed copy of substring
+ * @start: start of token
+ * @len: length of token
  *
- * Return: malloc'ed argv array terminated by NULL or NULL on failure
+ * Return: malloc'ed string
+ */
+char *copy_token(const char *start, size_t len)
+{
+	char *token;
+
+	token = malloc(len + 1);
+	if (!token)
+		return (NULL);
+	memcpy(token, start, len);
+	token[len] = '\0';
+	return (token);
+}
+
+/**
+ * tokenize - split the line into tokens (space/tab separated)
+ * @line: input string
+ *
+ * Return: malloc'ed array of strings terminated by NULL
  */
 char **tokenize(char *line)
 {
-	int ntokens = count_tokens(line);
-	char **argv = malloc((ntokens + 1) * sizeof(char *));
-	char *p = line;
-	int idx = 0;
+	int ntokens, idx;
+	char **argv;
+	char *p;
+	char *start;
 
+	if (!line)
+		return (NULL);
+
+	ntokens = count_tokens(line);
+	argv = malloc((ntokens + 1) * sizeof(char *));
 	if (!argv)
-		return NULL;
+		return (NULL);
+
+	p = line;
+	idx = 0;
+	start = NULL;
 
 	while (*p && idx < ntokens)
 	{
@@ -88,24 +99,27 @@ char **tokenize(char *line)
 			p++;
 		if (!*p)
 			break;
-		char *start = p;
+
+		start = p;
+
 		while (*p && *p != ' ' && *p != '\t')
 			p++;
-		argv[idx] = copy_token(start, p - start);
+
+		argv[idx] = copy_token(start, (size_t)(p - start));
 		if (!argv[idx])
 		{
 			free_tokens(argv);
-			return NULL;
+			return (NULL);
 		}
 		idx++;
 	}
 	argv[idx] = NULL;
-	return argv;
+	return (argv);
 }
 
 /**
- * free_tokens - free argv array and its elements
- * @tokens: argv array terminated by NULL
+ * free_tokens - free array of strings
+ * @tokens: tokenized array
  *
  * Return: void
  */
@@ -115,6 +129,7 @@ void free_tokens(char **tokens)
 
 	if (!tokens)
 		return;
+
 	for (i = 0; tokens[i]; i++)
 		free(tokens[i]);
 	free(tokens);
