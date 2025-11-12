@@ -39,29 +39,37 @@ int builtin_env(shell_info_t *info)
 
 /**
  * builtin_exit - perform exit [n] with cleanup
- * @argv: argument vector (argv[1] may be exit code)
- * @info: shell info structure
+ * @argv: argument vector (argv[0] is "exit")
+ * @info: shell information (for cleanup and prog_name)
  *
- * Return: normally does not return (cleanup_and_exit); or returns error code on invalid number
+ * Return: does not return on success (cleanup_and_exit calls exit)
+ *         returns int only for consistency/documentation
  */
 int builtin_exit(char **argv, shell_info_t *info)
 {
-	int code = 0;
+	int code;
+	char *endptr;
+	long v;
 
+	code = 0;
 	if (argv[1])
 	{
-		char *endptr;
-		long v = strtol(argv[1], &endptr, 10);
+		v = strtol(argv[1], &endptr, 10);
 		if (*endptr != '\0')
 		{
 			dprintf(STDERR_FILENO, "%s: exit: Illegal number: %s\n",
-					info->prog_name, argv[1]);
+				info->prog_name, argv[1]);
+
+			free_tokens(argv);
+			cleanup_and_exit(info, 2);
 			return 2;
 		}
 		code = (int)v;
 	}
+
+	free_tokens(argv);
 	cleanup_and_exit(info, code);
-	return code;
+	return code; /* unreachable */
 }
 
 /**
