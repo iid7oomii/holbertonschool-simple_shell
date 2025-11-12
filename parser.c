@@ -84,11 +84,11 @@ char **tokenize(char *line)
 
 	while (*p && idx < ntokens)
 	{
+		char *start = p;
 		while (*p == ' ' || *p == '\t')
 			p++;
 		if (!*p)
 			break;
-		char *start = p;
 		while (*p && *p != ' ' && *p != '\t')
 			p++;
 		argv[idx] = copy_token(start, p - start);
