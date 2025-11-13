@@ -1,1 +1,108 @@
-Man page
+.\" =======================================================================
+.\" simple_shell(1) - manual for holbertonschool-simple_shell project
+.\" =======================================================================
+.TH simple_shell 1 "2025-11-13" "v1.0" "User Commands"
+.SH NAME
+simple_shell \- a minimal UNIX command interpreter (holbertonschool-simple_shell project)
+
+.SH SYNOPSIS
+.B hsh
+.RI [ script-file ]
+
+.SH DESCRIPTION
+\fIsimple_shell\fR is a lightweight command-line interpreter written as part of the Holberton School curriculum. It provides basic shell functionality, including:
+
+.IP \(bu 3
+Interactive and non-interactive modes.
+.IP \(bu 3
+Command parsing and tokenization (handled in \fIparser.c\fR).
+.IP \(bu 3
+Execution of external commands located via the \fBPATH\fR environment variable (see \fIpath.c\fR).
+.IP \(bu 3
+Built-in commands like \fBexit\fR and \fBenv\fR (implemented in \fIbuiltins.c\fR).
+.IP \(bu 3
+Signal handling for Ctrl-C in interactive mode (in \fIsignals.c\fR).
+
+The codebase includes header \fIshell.h\fR for shared declarations and utilities in \fIutils.c\fR.
+
+.SH OPERATION MODES
+.SS Interactive Mode
+When run interactively, the shell displays a prompt (e.g., \fBhsh>\fR), reads commands, and executes them.
+
+Example:
+.EX
+$ ./hsh
+hsh> ls -l
+hsh> env
+hsh> exit
+.EE
+
+.SS Non-Interactive Mode
+When commands are piped or redirected:
+.EX
+$ echo "ls -l" | ./hsh
+$ ./hsh < script.sh
+.EE
+
+.SH BUILTINS
+Implemented built-in commands include:
+
+.TP
+\fBexit [status]\fR
+Exit the shell with an optional status code.
+.TP
+\fBenv\fR
+Print the environment variables.
+
+.SH EXECUTION
+For external commands:
+.IP \(bu 3
+The shell tokenizes input (in \fIparser.c\fR).
+.IP \(bu 3
+If it's a builtin, it runs directly (from \fIbuiltins.c\fR).
+.IP \(bu 3
+Otherwise, it searches \fBPATH\fR (via \fIpath.c\fR) and uses \fIfork\fR/\fIexecve\fR (in \fIexec.c\fR) to run the command.
+
+.SH ERRORS & EXIT STATUS
+Common exit codes:
+.TP
+127 — command not found.
+.TP
+126 — command found but not executable.
+.TP
+Other codes — returned from executed commands.
+
+.SH ENVIRONMENT
+Inherits environment variables such as \fBPATH\fR and passes them to child processes.
+
+.SH FILES
+Source files in this repository include:
+.TP
+\fImain.c\fR, \fIparser.c\fR, \fIexec.c\fR, \fIpath.c\fR, \fbuiltins.c\fR, \fIutils.c\fR, \fIsignals.c\fR, \fshell.h\fR.
+
+.SH EXAMPLES
+Interactive:
+.EX
+$ ./hsh
+hsh> echo Hello
+Hello
+hsh> exit
+.EE
+
+Non-interactive:
+.EX
+$ printf "pwd\nls\nexit\n" | ./hsh
+.EE
+
+.SH LIMITATIONS
+This shell does not support pipes, redirections, or advanced shell features. It is intended as a learning project and focuses on the basics of shell behavior.
+
+.SH AUTHOR
+Abdulrahman Alghamdi <abdulrahman18alghamdi@gmail.com> — Holberton School project.
+Yasir Alshabanah <yaser.al.shabanah@gmail.com> — Holberton School project.
+
+.SH SEE ALSO
+sh(1), bash(1), execve(2), fork(2), getline(3)
+
+.SH NOTES
+Report bugs or suggestions via the repository issues page.
