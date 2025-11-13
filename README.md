@@ -1,5 +1,10 @@
 # Simple Shell Project
 
+<img src="https://preview.redd.it/i-cant-for-the-life-of-me-figure-out-the-weird-syntax-v0-ljomkqgx2hz81.png?width=320&crop=smart&auto=webp&s=9b32926d8ec87d23a1e4125d4c51bfeed56508e4"
+     alt="Weird syntax image"
+     width="320">
+
+
 
 
 ## 🧠 What’s This About?
